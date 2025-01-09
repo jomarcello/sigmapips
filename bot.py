@@ -4,7 +4,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler, MessageHandler, Filters
 import requests
 import json
-import random
 from datetime import datetime
 
 # Enable logging
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 # Bot Token
 TOKEN = '7583525993:AAGD3IKwGataqJgqMAkz6nyeCMmoc2A5QvY'
 
-# n8n Webhook URL - vul hier je n8n webhook URL in
+# n8n Webhook URL
 N8N_WEBHOOK_URL = 'https://primary-ovys-production.up.railway.app/webhook-test/9cd758ba-d510-4dfa-b3cf-cac1341c4940'
 
 # Whitelist of allowed chat IDs
@@ -25,6 +24,37 @@ ALLOWED_CHATS = {
     5493460969,  # Your chat ID
     2004519703,  # Jo's chat ID
 }
+
+# Market Data Structure
+MARKET_DATA = {
+    'forex': {
+        'name': 'Forex',
+        'instruments': [
+            'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD'
+        ]
+    },
+    'crypto': {
+        'name': 'Crypto',
+        'instruments': [
+            'BTCUSD', 'ETHUSD', 'BNBUSD', 'XRPUSD', 'SOLUSD'
+        ]
+    },
+    'commodities': {
+        'name': 'Commodities',
+        'instruments': [
+            'XAUUSD', 'XAGUSD', 'WTIUSD', 'BRENTUSD', 'COPPERUSD'
+        ]
+    },
+    'indices': {
+        'name': 'Indices',
+        'instruments': [
+            'US30', 'US500', 'USTEC', 'GER40', 'UK100'
+        ]
+    }
+}
+
+# Timeframes
+TIMEFRAMES = ['15m', 'H1', 'H4']
 
 def is_allowed(update: Update) -> bool:
     """Check if the chat ID is allowed to use the bot."""
@@ -40,72 +70,58 @@ def start(update: Update, context: CallbackContext) -> None:
             return
 
         logger.info(f"Start command received from authorized user {chat_id}")
-        keyboard = [
-            [
-                InlineKeyboardButton("Select Trading Pair", callback_data='select_pair'),
-            ]
-        ]
+        keyboard = []
+        for market_id, market_data in MARKET_DATA.items():
+            keyboard.append([InlineKeyboardButton(market_data['name'], callback_data=f'market_{market_id}')])
+        
         reply_markup = InlineKeyboardMarkup(keyboard)
-        update.message.reply_text('Welcome to SigmaPips! Please select an option:', reply_markup=reply_markup)
+        update.message.reply_text('Welcome to SigmaPips! Select a market:', reply_markup=reply_markup)
         logger.info(f"Start command processed for user {chat_id}")
     except Exception as e:
         logger.error(f"Error in start command: {str(e)}")
         raise
 
-def get_trading_pairs():
-    """Get list of trading pairs."""
-    return [
-        'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF',
-        'AUDUSD', 'USDCAD', 'NZDUSD', 'EURJPY'
-    ]
-
-def get_timeframes():
-    """Get list of timeframes."""
-    return [
-        'M5', 'M15', 'M30',
-        'H1', 'H4', 'D1'
-    ]
-
-def show_pairs(update: Update, context: CallbackContext) -> None:
-    """Show available trading pairs."""
-    pairs = get_trading_pairs()
+def show_instruments(update: Update, context: CallbackContext, market_id: str) -> None:
+    """Show instruments for selected market."""
+    market = MARKET_DATA[market_id]
     keyboard = []
-    for pair in pairs:
-        keyboard.append([InlineKeyboardButton(pair, callback_data=f'pair_{pair}')])
+    for instrument in market['instruments']:
+        keyboard.append([InlineKeyboardButton(instrument, callback_data=f'inst_{market_id}_{instrument}')])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        update.callback_query.edit_message_text('Select a trading pair:', reply_markup=reply_markup)
-    else:
-        update.message.reply_text('Select a trading pair:', reply_markup=reply_markup)
+    update.callback_query.edit_message_text(
+        f"Select {market['name']} instrument:",
+        reply_markup=reply_markup
+    )
 
-def show_timeframes(update: Update, context: CallbackContext, selected_pair: str) -> None:
-    """Show available timeframes."""
-    timeframes = get_timeframes()
+def show_timeframes(update: Update, context: CallbackContext, market_id: str, instrument: str) -> None:
+    """Show timeframe selection."""
     keyboard = []
-    for tf in timeframes:
-        keyboard.append([InlineKeyboardButton(tf, callback_data=f'tf_{selected_pair}_{tf}')])
+    for tf in TIMEFRAMES:
+        keyboard.append([InlineKeyboardButton(tf, callback_data=f'tf_{market_id}_{instrument}_{tf}')])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.callback_query.edit_message_text(f'Selected pair: {selected_pair}\nChoose timeframe:', reply_markup=reply_markup)
+    update.callback_query.edit_message_text(
+        f"Selected: {instrument}\nChoose timeframe:",
+        reply_markup=reply_markup
+    )
 
-def send_to_n8n(pair: str, timeframe: str, update: Update, context: CallbackContext):
+def send_to_n8n(market: str, instrument: str, timeframe: str, update: Update, context: CallbackContext):
     """Send the request to n8n and handle the response."""
     try:
-        # Bereid de data voor
+        # Prepare data
         data = {
-            "pair": pair,
+            "market": market,
+            "instrument": instrument,
             "timeframe": timeframe,
             "chat_id": update.effective_chat.id,
-            "message_id": update.callback_query.message.message_id,
-            "test": "test_message"
+            "message_id": update.callback_query.message.message_id
         }
         
         logger.info(f"Sending request to n8n: {N8N_WEBHOOK_URL}")
         logger.info(f"Request data: {json.dumps(data, indent=2)}")
         
-        # Stuur request naar n8n
+        # Send request to n8n
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
@@ -117,13 +133,14 @@ def send_to_n8n(pair: str, timeframe: str, update: Update, context: CallbackCont
         
         response.raise_for_status()
         
-        # Bevestig dat het verzoek is verzonden
+        # Confirm request sent
+        market_name = MARKET_DATA[market]['name']
         update.callback_query.edit_message_text(
-            f"🔄 Analyzing {pair} on {timeframe} timeframe...\n"
-            f"Please wait while I process your request.\n\n"
-            f"Debug info:\n"
-            f"Status: {response.status_code}\n"
-            f"Response: {response.text[:100]}"  # Eerste 100 karakters van response
+            f"🔄 Analysis Request\n\n"
+            f"Market: {market_name}\n"
+            f"Instrument: {instrument}\n"
+            f"Timeframe: {timeframe}\n\n"
+            f"Processing your request... Please wait."
         )
         
     except Exception as e:
@@ -145,14 +162,17 @@ def button_callback(update: Update, context: CallbackContext) -> None:
     
     data = query.data
     
-    if data == 'select_pair':
-        show_pairs(update, context)
-    elif data.startswith('pair_'):
-        pair = data.split('_')[1]
-        show_timeframes(update, context, pair)
+    if data.startswith('market_'):
+        market_id = data.split('_')[1]
+        show_instruments(update, context, market_id)
+    
+    elif data.startswith('inst_'):
+        _, market_id, instrument = data.split('_')
+        show_timeframes(update, context, market_id, instrument)
+    
     elif data.startswith('tf_'):
-        _, pair, timeframe = data.split('_')
-        send_to_n8n(pair, timeframe, update, context)
+        _, market_id, instrument, timeframe = data.split('_')
+        send_to_n8n(market_id, instrument, timeframe, update, context)
 
 def error_handler(update: Update, context: CallbackContext) -> None:
     """Log Errors caused by Updates."""
