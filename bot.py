@@ -233,13 +233,15 @@ def main() -> None:
         # Register error handler
         dispatcher.add_error_handler(error_handler)
 
-        # Delete webhook before starting polling
-        logger.info("Deleting webhook...")
+        # Delete webhook and stop any existing instances
+        logger.info("Cleaning up old instances...")
         updater.bot.delete_webhook()
+        updater.bot.close()
         
-        # Start the Bot with drop_pending_updates=True to clean any pending updates
+        # Start the Bot with clean state
+        logger.info("Starting bot with clean state...")
+        updater.start_polling(drop_pending_updates=True, clean=True)
         logger.info("Bot started successfully")
-        updater.start_polling(drop_pending_updates=True)
 
         # Run the bot until you press Ctrl-C
         updater.idle()
