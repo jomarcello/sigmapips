@@ -1,14 +1,7 @@
 import logging
-import sys
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Updater,
-    CommandHandler,
-    CallbackQueryHandler,
-    CallbackContext,
-    MessageHandler,
-    Filters,
-)
+from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler
 import requests
 import json
 import random
@@ -16,14 +9,15 @@ from datetime import datetime
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG,
-    stream=sys.stdout
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
 # Bot Token
-TOKEN = '7583525993:AAHybOQQJ0OOamxjCJMSSgQm5W3eMNAsMaM'
+TOKEN = '7583525993:AAGD3IKwGataqJgqMAkz6nyeCMmoc2A5QvY'
+
+# n8n Webhook URL - vul hier je n8n webhook URL in
+N8N_WEBHOOK_URL = 'https://primary-production-007c.up.railway.app/webhook/sigmapips'
 
 # Whitelist of allowed chat IDs
 ALLOWED_CHATS = {
@@ -32,205 +26,133 @@ ALLOWED_CHATS = {
     2004519703,  # Jo's chat ID
 }
 
-# Market Data
-MARKET_DATA = {
-    'forex': {
-        'name': 'Forex',
-        'pairs': {
-            'eurusd': 'EUR/USD',
-            'gbpusd': 'GBP/USD',
-            'usdjpy': 'USD/JPY',
-            'audusd': 'AUD/USD',
-            'usdcad': 'USD/CAD'
-        }
-    },
-    'crypto': {
-        'name': 'Crypto',
-        'pairs': {
-            'btcusd': 'BTC/USD',
-            'ethusd': 'ETH/USD',
-            'bnbusd': 'BNB/USD',
-            'xrpusd': 'XRP/USD',
-            'solusd': 'SOL/USD'
-        }
-    },
-    'indices': {
-        'name': 'Indices',
-        'pairs': {
-            'us30': 'US30',
-            'us100': 'US100',
-            'us500': 'US500',
-            'eu50': 'EU50',
-            'jp225': 'JP225'
-        }
-    }
-}
-
-def is_allowed(chat_id: int) -> bool:
+def is_allowed(update: Update) -> bool:
     """Check if the chat ID is allowed to use the bot."""
-    return chat_id in ALLOWED_CHATS
-
-def error_handler(update: Update, context: CallbackContext) -> None:
-    """Log Errors caused by Updates."""
-    logger.error(f'Update "{update}" caused error "{context.error}"')
+    return update.effective_chat.id in ALLOWED_CHATS
 
 def start(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /start is issued."""
     try:
         chat_id = update.effective_chat.id
-        if not is_allowed(chat_id):
+        if not is_allowed(update):
             logger.warning(f"Unauthorized access attempt from chat ID: {chat_id}")
             update.message.reply_text("Sorry, you are not authorized to use this bot.")
             return
 
         logger.info(f"Start command received from authorized user {chat_id}")
         keyboard = [
-            [InlineKeyboardButton("Forex", callback_data='forex')],
-            [InlineKeyboardButton("Crypto", callback_data='crypto')],
-            [InlineKeyboardButton("Indices", callback_data='indices')]
+            [
+                InlineKeyboardButton("Select Trading Pair", callback_data='select_pair'),
+            ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        update.message.reply_text(
-            'Welcome to the Trading Bot! Please choose a market to receive signals:',
-            reply_markup=reply_markup
-        )
+        update.message.reply_text('Welcome to SigmaPips! Please select an option:', reply_markup=reply_markup)
         logger.info(f"Start command processed for user {chat_id}")
     except Exception as e:
         logger.error(f"Error in start command: {str(e)}")
         raise
 
-def generate_pair_buttons(market: str) -> list:
-    """Generate pair buttons for a specific market."""
-    pairs = MARKET_DATA[market]['pairs']
-    buttons = []
-    for pair_id, pair_name in pairs.items():
-        buttons.append([InlineKeyboardButton(
-            pair_name,
-            callback_data=f'{market}_{pair_id}'
-        )])
-    return buttons
-
-def generate_timeframe_buttons(callback_data: str) -> list:
-    """Generate timeframe buttons."""
+def get_trading_pairs():
+    """Get list of trading pairs."""
     return [
-        [
-            InlineKeyboardButton("15m", callback_data=f'{callback_data}_15m'),
-            InlineKeyboardButton("H1", callback_data=f'{callback_data}_h1'),
-            InlineKeyboardButton("H4", callback_data=f'{callback_data}_h4')
-        ]
+        'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF',
+        'AUDUSD', 'USDCAD', 'NZDUSD', 'EURJPY'
     ]
 
+def get_timeframes():
+    """Get list of timeframes."""
+    return [
+        'M5', 'M15', 'M30',
+        'H1', 'H4', 'D1'
+    ]
+
+def show_pairs(update: Update, context: CallbackContext) -> None:
+    """Show available trading pairs."""
+    pairs = get_trading_pairs()
+    keyboard = []
+    for pair in pairs:
+        keyboard.append([InlineKeyboardButton(pair, callback_data=f'pair_{pair}')])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if update.callback_query:
+        update.callback_query.edit_message_text('Select a trading pair:', reply_markup=reply_markup)
+    else:
+        update.message.reply_text('Select a trading pair:', reply_markup=reply_markup)
+
+def show_timeframes(update: Update, context: CallbackContext, selected_pair: str) -> None:
+    """Show available timeframes."""
+    timeframes = get_timeframes()
+    keyboard = []
+    for tf in timeframes:
+        keyboard.append([InlineKeyboardButton(tf, callback_data=f'tf_{selected_pair}_{tf}')])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.callback_query.edit_message_text(f'Selected pair: {selected_pair}\nChoose timeframe:', reply_markup=reply_markup)
+
 def send_to_n8n(pair: str, timeframe: str, update: Update, context: CallbackContext):
-    """Process the trading signal directly."""
+    """Send the request to n8n and handle the response."""
     try:
-        # Here we can add the trading analysis logic that was in n8n
-        analysis_result = analyze_trading_pair(pair, timeframe)
+        # Bereid de data voor
+        data = {
+            "pair": pair,
+            "timeframe": timeframe,
+            "chat_id": update.effective_chat.id,
+            "message_id": update.callback_query.message.message_id
+        }
         
-        # Format and send our own message
-        message = (
-            f"🎯 *Trading Signal Analysis*\n\n"
-            f"📊 *Pair:* {pair}\n"
-            f"⏱ *Timeframe:* {timeframe}\n\n"
-            f"📈 *Analysis:*\n{analysis_result}\n\n"
-            f"_Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_"
-        )
+        # Stuur request naar n8n
+        response = requests.post(N8N_WEBHOOK_URL, json=data)
+        response.raise_for_status()
         
-        # Send message with markdown formatting
+        # Bevestig dat het verzoek is verzonden
         update.callback_query.edit_message_text(
-            text=message,
-            parse_mode='Markdown'
+            f"🔄 Analyzing {pair} on {timeframe} timeframe...\n"
+            f"Please wait while I process your request."
         )
-        
-        logger.info(f"Successfully sent analysis for {pair} {timeframe}")
         
     except Exception as e:
-        logger.error(f"Error in signal analysis: {str(e)}")
-        error_message = "❌ Sorry, er is een fout opgetreden bij het analyseren. Probeer het later opnieuw."
+        logger.error(f"Error in send_to_n8n: {str(e)}")
+        error_message = "❌ Sorry, er is een fout opgetreden. Probeer het later opnieuw."
         try:
             update.callback_query.edit_message_text(text=error_message)
         except Exception as e2:
             logger.error(f"Error sending error message: {str(e2)}")
 
-def analyze_trading_pair(pair: str, timeframe: str) -> str:
-    """Analyze the trading pair and return insights."""
-    # Here we can implement the analysis logic that was previously in n8n
-    # This is a simple example - you can make this as sophisticated as needed
-    
-    analysis = [
-        "🔍 *Market Analysis:*",
-        "- Current trend is bullish",
-        "- Strong support at recent levels",
-        "- Volume showing increasing interest",
-        "",
-        "📊 *Technical Indicators:*",
-        "- RSI: 58 (Neutral)",
-        "- MACD: Bullish crossover",
-        "- Moving Averages: Above 200 EMA",
-        "",
-        "💡 *Recommendation:*",
-        "Consider long position with tight stop loss"
-    ]
-    
-    return "\n".join(analysis)
-
 def button_callback(update: Update, context: CallbackContext) -> None:
     """Handle button callbacks."""
     query = update.callback_query
-    chat_id = update.effective_chat.id
+    query.answer()
     
-    if not is_allowed(chat_id):
-        logger.warning(f"Unauthorized callback attempt from chat ID: {chat_id}")
-        query.answer("Sorry, you are not authorized to use this bot.")
+    if not is_allowed(update):
+        query.edit_message_text('Sorry, you are not authorized to use this bot.')
         return
-
-    callback_data = query.data
-    logger.info(f"Received callback: {callback_data}")
-
-    # Parse callback data
-    parts = callback_data.split('_')
     
-    if len(parts) == 1:  # Market selection
-        market = parts[0]
-        keyboard = generate_pair_buttons(market)
-        query.edit_message_text(
-            text=f"Select a pair from {MARKET_DATA[market]['name']}:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-    elif len(parts) == 2:  # Pair selection
-        market, pair = parts
-        keyboard = generate_timeframe_buttons(callback_data)
-        query.edit_message_text(
-            text=f"Select timeframe for {MARKET_DATA[market]['pairs'][pair]}:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-    elif len(parts) == 3:  # Timeframe selection
-        market, pair, timeframe = parts
-        pair_name = MARKET_DATA[market]['pairs'][pair]
-        logger.info(f"Generating signal for {pair_name} on {timeframe}")
-        send_to_n8n(pair_name, timeframe, update, context)
+    data = query.data
+    
+    if data == 'select_pair':
+        show_pairs(update, context)
+    elif data.startswith('pair_'):
+        pair = data.split('_')[1]
+        show_timeframes(update, context, pair)
+    elif data.startswith('tf_'):
+        _, pair, timeframe = data.split('_')
+        send_to_n8n(pair, timeframe, update, context)
+
+def error_handler(update: Update, context: CallbackContext) -> None:
+    """Log Errors caused by Updates."""
+    logger.error(f'Update "{update}" caused error "{context.error}"')
 
 def handle_unknown(update: Update, context: CallbackContext) -> None:
     """Handle unknown commands."""
     chat_id = update.effective_chat.id
-    if not is_allowed(chat_id):
+    if not is_allowed(update):
         logger.warning(f"Unauthorized command attempt from chat ID: {chat_id}")
         update.message.reply_text("Sorry, you are not authorized to use this bot.")
         return
 
     update.message.reply_text("Invalid input. Please use /start to begin again.")
     logger.warning(f"Unknown command received from {chat_id}: {update.message.text}")
-
-def error_handler(update: Update, context: CallbackContext) -> None:
-    """Log the error and send a message to the user."""
-    logger.error(f"Exception while handling an update: {context.error}")
-    
-    try:
-        if update and update.effective_message:
-            update.effective_message.reply_text(
-                "Sorry, er is een fout opgetreden. Probeer /start om opnieuw te beginnen."
-            )
-    except Exception as e:
-        logger.error(f"Error in error handler: {e}")
 
 def main() -> None:
     """Start the bot."""
