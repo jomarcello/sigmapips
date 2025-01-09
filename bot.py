@@ -5,10 +5,13 @@ from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQuery
 import requests
 import json
 from datetime import datetime
+import sys
 
-# Enable logging
+# Enable logging with more detail
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG,
+    stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
 
@@ -118,38 +121,58 @@ def send_to_n8n(market: str, instrument: str, timeframe: str, update: Update, co
             "message_id": update.callback_query.message.message_id
         }
         
-        logger.info(f"Sending request to n8n: {N8N_WEBHOOK_URL}")
-        logger.info(f"Request data: {json.dumps(data, indent=2)}")
+        logger.debug(f"=== Starting n8n request ===")
+        logger.debug(f"Webhook URL: {N8N_WEBHOOK_URL}")
+        logger.debug(f"Request data: {json.dumps(data, indent=2)}")
         
         # Send request to n8n
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
+        logger.debug(f"Request headers: {headers}")
+        
         response = requests.post(N8N_WEBHOOK_URL, json=data, headers=headers)
         
-        logger.info(f"Response status: {response.status_code}")
-        logger.info(f"Response content: {response.text}")
+        logger.debug(f"Response status code: {response.status_code}")
+        logger.debug(f"Response headers: {dict(response.headers)}")
+        logger.debug(f"Response content: {response.text}")
+        logger.debug("=== End n8n request ===")
         
         response.raise_for_status()
         
         # Confirm request sent
         market_name = MARKET_DATA[market]['name']
-        update.callback_query.edit_message_text(
+        message = (
             f"🔄 Analysis Request\n\n"
             f"Market: {market_name}\n"
             f"Instrument: {instrument}\n"
             f"Timeframe: {timeframe}\n\n"
-            f"Processing your request... Please wait."
+            f"Debug Info:\n"
+            f"Status: {response.status_code}\n"
+            f"URL: {N8N_WEBHOOK_URL}\n"
+            f"Response: {response.text[:100]}"
         )
+        update.callback_query.edit_message_text(message)
         
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error: {str(e)}")
+        error_message = (
+            f"❌ Network Error:\n{str(e)}\n\n"
+            f"URL: {N8N_WEBHOOK_URL}\n"
+            f"Please check if n8n is running and accessible."
+        )
+        update.callback_query.edit_message_text(text=error_message)
     except Exception as e:
-        logger.error(f"Error in send_to_n8n: {str(e)}")
-        error_message = f"❌ Error: {str(e)}\n\nURL: {N8N_WEBHOOK_URL}"
+        logger.error(f"General error in send_to_n8n: {str(e)}", exc_info=True)
+        error_message = (
+            f"❌ Error:\n{str(e)}\n\n"
+            f"URL: {N8N_WEBHOOK_URL}"
+        )
         try:
             update.callback_query.edit_message_text(text=error_message)
         except Exception as e2:
-            logger.error(f"Error sending error message: {str(e2)}")
+            logger.error(f"Error sending error message: {str(e2)}", exc_info=True)
 
 def button_callback(update: Update, context: CallbackContext) -> None:
     """Handle button callbacks."""
