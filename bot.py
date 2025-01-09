@@ -148,26 +148,22 @@ def send_to_n8n(market: str, instrument: str, timeframe: str, update: Update, co
             f"Market: {market_name}\n"
             f"Instrument: {instrument}\n"
             f"Timeframe: {timeframe}\n\n"
-            f"Debug Info:\n"
-            f"Status: {response.status_code}\n"
-            f"URL: {N8N_WEBHOOK_URL}\n"
-            f"Response: {response.text[:100]}"
+            f"Status: Workflow started ✅"
         )
         update.callback_query.edit_message_text(message)
         
     except requests.exceptions.RequestException as e:
         logger.error(f"Network error: {str(e)}")
         error_message = (
-            f"❌ Network Error:\n{str(e)}\n\n"
-            f"URL: {N8N_WEBHOOK_URL}\n"
-            f"Please check if n8n is running and accessible."
+            f"❌ Network Error\n"
+            f"Please try again later."
         )
         update.callback_query.edit_message_text(text=error_message)
     except Exception as e:
         logger.error(f"General error in send_to_n8n: {str(e)}", exc_info=True)
         error_message = (
-            f"❌ Error:\n{str(e)}\n\n"
-            f"URL: {N8N_WEBHOOK_URL}"
+            f"❌ Error\n"
+            f"Please try again later."
         )
         try:
             update.callback_query.edit_message_text(text=error_message)
