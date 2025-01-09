@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Bot Token
-TOKEN = '7583525993:AAGD3IKwGataqJgqMAkz6nyeCMmoc2A5QvY'
+TOKEN = '7583525993:AAHWnOP1jPOM_PunvAHwHizFXLPIYkz9Iho'
 
 # n8n Webhook URL
 N8N_WEBHOOK_URL = 'https://primary-ovys-production.up.railway.app/webhook-test/webhook'
