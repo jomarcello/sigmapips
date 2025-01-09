@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Bot Token
-TOKEN = '7605367536:AAEwLQsGQ5hu9a0SHx0z2UM9ilNX2k8MG8w'
+TOKEN = '7583525993:AAHybOQQJ0OOamxjCJMSSgQm5W3eMNAsMaM'
 
 # Whitelist of allowed chat IDs
 ALLOWED_CHATS = {
