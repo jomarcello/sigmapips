@@ -1,7 +1,7 @@
 import logging
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler
+from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler, MessageHandler, Filters
 import requests
 import json
 import random
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 TOKEN = '7583525993:AAGD3IKwGataqJgqMAkz6nyeCMmoc2A5QvY'
 
 # n8n Webhook URL - vul hier je n8n webhook URL in
-N8N_WEBHOOK_URL = 'https://primary-production-007c.up.railway.app/webhook/sigmapips'
+N8N_WEBHOOK_URL = 'https://primary-ovys-production.up.railway.app/webhook-test/9cd758ba-d510-4dfa-b3cf-cac1341c4940'
 
 # Whitelist of allowed chat IDs
 ALLOWED_CHATS = {
