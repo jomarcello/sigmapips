@@ -98,22 +98,37 @@ def send_to_n8n(pair: str, timeframe: str, update: Update, context: CallbackCont
             "pair": pair,
             "timeframe": timeframe,
             "chat_id": update.effective_chat.id,
-            "message_id": update.callback_query.message.message_id
+            "message_id": update.callback_query.message.message_id,
+            "test": "test_message"
         }
         
+        logger.info(f"Sending request to n8n: {N8N_WEBHOOK_URL}")
+        logger.info(f"Request data: {json.dumps(data, indent=2)}")
+        
         # Stuur request naar n8n
-        response = requests.post(N8N_WEBHOOK_URL, json=data)
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        response = requests.post(N8N_WEBHOOK_URL, json=data, headers=headers)
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response content: {response.text}")
+        
         response.raise_for_status()
         
         # Bevestig dat het verzoek is verzonden
         update.callback_query.edit_message_text(
             f"🔄 Analyzing {pair} on {timeframe} timeframe...\n"
-            f"Please wait while I process your request."
+            f"Please wait while I process your request.\n\n"
+            f"Debug info:\n"
+            f"Status: {response.status_code}\n"
+            f"Response: {response.text[:100]}"  # Eerste 100 karakters van response
         )
         
     except Exception as e:
         logger.error(f"Error in send_to_n8n: {str(e)}")
-        error_message = "❌ Sorry, er is een fout opgetreden. Probeer het later opnieuw."
+        error_message = f"❌ Error: {str(e)}\n\nURL: {N8N_WEBHOOK_URL}"
         try:
             update.callback_query.edit_message_text(text=error_message)
         except Exception as e2:
