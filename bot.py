@@ -216,7 +216,7 @@ def main() -> None:
     """Start the bot."""
     try:
         # Create the Updater and pass it your bot's token
-        updater = Updater(TOKEN)
+        updater = Updater(TOKEN, use_context=True)
 
         # Get the dispatcher to register handlers
         dispatcher = updater.dispatcher
@@ -233,14 +233,9 @@ def main() -> None:
         # Register error handler
         dispatcher.add_error_handler(error_handler)
 
-        # Delete webhook and stop any existing instances
-        logger.info("Cleaning up old instances...")
-        updater.bot.delete_webhook()
-        updater.bot.close()
-        
-        # Start the Bot with clean state
-        logger.info("Starting bot with clean state...")
-        updater.start_polling(drop_pending_updates=True, clean=True)
+        # Start the Bot
+        logger.info("Starting bot...")
+        updater.start_polling(allowed_updates=['message', 'callback_query'])
         logger.info("Bot started successfully")
 
         # Run the bot until you press Ctrl-C
