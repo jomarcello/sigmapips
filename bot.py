@@ -6,6 +6,22 @@ import requests
 import json
 from datetime import datetime
 import sys
+from flask import Flask, jsonify
+
+# Create Flask app
+app = Flask(__name__)
+
+# Health check endpoint
+@app.route('/health')
+def health_check():
+    return jsonify({"status": "healthy"}), 200
+
+# Start Flask app in a separate thread
+from threading import Thread
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)))
+
+Thread(target=run_flask, daemon=True).start()
 
 # Enable logging with more detail
 logging.basicConfig(
@@ -16,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Bot Token
-TOKEN = '7583525993:AAHWnOP1jPOM_PunvAHwHizFXLPIYkz9Iho'
+TOKEN = '7583525993:AAEdW-F9wFprCI4WOKWmDXj6JgnMBFhawr0'
 
 # n8n Webhook URL
 N8N_WEBHOOK_URL = 'primary-production-007c.up.railway.app/webhook-test/c4c3e821-9f21-4102-b924-5d37c363325f'
@@ -131,7 +147,12 @@ def send_to_n8n(market: str, instrument: str, timeframe: str, update: Update, co
         }
         logger.debug(f"Request headers: {headers}")
         
-        response = requests.post(N8N_WEBHOOK_URL, json=data, headers=headers)
+        response = requests.post(
+            f"https://{N8N_WEBHOOK_URL}",
+            json=data,
+            headers=headers,
+            timeout=10
+        )
         
         logger.debug(f"Response status code: {response.status_code}")
         logger.debug(f"Response headers: {dict(response.headers)}")
@@ -155,6 +176,7 @@ def send_to_n8n(market: str, instrument: str, timeframe: str, update: Update, co
         logger.error(f"Network error: {str(e)}")
         error_message = (
             f"❌ Network Error\n"
+            f"Status: {e.response.status_code if hasattr(e, 'response') else 'Unknown'}\n"
             f"Please try again later."
         )
         update.callback_query.edit_message_text(text=error_message)
@@ -162,6 +184,8 @@ def send_to_n8n(market: str, instrument: str, timeframe: str, update: Update, co
         logger.error(f"General error in send_to_n8n: {str(e)}", exc_info=True)
         error_message = (
             f"❌ Error\n"
+            f"Type: {type(e).__name__}\n"
+            f"Message: {str(e)}\n"
             f"Please try again later."
         )
         try:
