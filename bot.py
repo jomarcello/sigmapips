@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 TOKEN = '7583525993:AAHWnOP1jPOM_PunvAHwHizFXLPIYkz9Iho'
 
 # n8n Webhook URL
-N8N_WEBHOOK_URL = 'https://primary-ovys-production.up.railway.app/webhook-test/9cd758ba-d510-4dfa-b3cf-cac1341c4940'
+N8N_WEBHOOK_URL = 'primary-production-007c.up.railway.app/webhook-test/c4c3e821-9f21-4102-b924-5d37c363325f'
 # Whitelist of allowed chat IDs
 ALLOWED_CHATS = {
     1234567890,  # Example chat ID
