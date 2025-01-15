@@ -1,7 +1,7 @@
 import logging
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler, MessageHandler, Filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 import requests
 import json
 from datetime import datetime
@@ -36,6 +36,7 @@ TOKEN = '7583525993:AAEdW-F9wFprCI4WOKWmDXj6JgnMBFhawr0'
 
 # n8n Webhook URL
 N8N_WEBHOOK_URL = 'primary-production-007c.up.railway.app/webhook-test/c4c3e821-9f21-4102-b924-5d37c363325f'
+
 # Whitelist of allowed chat IDs
 ALLOWED_CHATS = {
     1234567890,  # Example chat ID
@@ -72,7 +73,7 @@ MARKET_DATA = {
 }
 
 # Timeframes
-TIMEFRAMES = ['15m', 'H1', 'H4']
+TIMEFRAMES = ['1m', '15m', 'H1', 'H4']
 
 def is_allowed(update: Update) -> bool:
     """Check if the chat ID is allowed to use the bot."""
@@ -222,47 +223,42 @@ def error_handler(update: Update, context: CallbackContext) -> None:
 
 def handle_unknown(update: Update, context: CallbackContext) -> None:
     """Handle unknown commands."""
-    chat_id = update.effective_chat.id
     if not is_allowed(update):
-        logger.warning(f"Unauthorized command attempt from chat ID: {chat_id}")
-        update.message.reply_text("Sorry, you are not authorized to use this bot.")
         return
-
-    update.message.reply_text("Invalid input. Please use /start to begin again.")
-    logger.warning(f"Unknown command received from {chat_id}: {update.message.text}")
+    update.message.reply_text("Sorry, I don't understand that command.")
 
 def main() -> None:
     """Start the bot."""
     try:
         # Create the Updater and pass it your bot's token
-        updater = Updater(TOKEN, use_context=True)
+        updater = Updater(TOKEN)
 
         # Get the dispatcher to register handlers
-        dispatcher = updater.dispatcher
+        dp = updater.dispatcher
 
-        # Register command handlers
-        dispatcher.add_handler(CommandHandler("start", start))
+        # Add command handlers
+        dp.add_handler(CommandHandler("start", start))
         
-        # Register callback query handler
-        dispatcher.add_handler(CallbackQueryHandler(button_callback))
+        # Add callback query handler
+        dp.add_handler(CallbackQueryHandler(button_callback))
         
-        # Register message handler for unknown commands
-        dispatcher.add_handler(MessageHandler(Filters.command, handle_unknown))
+        # Add unknown command handler
+        dp.add_handler(MessageHandler(Filters.command, handle_unknown))
         
-        # Register error handler
-        dispatcher.add_error_handler(error_handler)
+        # Add error handler
+        dp.add_error_handler(error_handler)
 
         # Start the Bot
-        logger.info("Starting bot...")
-        updater.start_polling(allowed_updates=['message', 'callback_query'])
-        logger.info("Bot started successfully")
-
+        updater.start_polling()
+        
+        logger.info("Bot started successfully!")
+        
         # Run the bot until you press Ctrl-C
         updater.idle()
-            
+        
     except Exception as e:
-        logger.error(f"Error in main loop: {e}")
-        raise  # Re-raise the exception to let the shell script handle the restart
+        logger.error(f"Error in main function: {str(e)}", exc_info=True)
+        raise
 
 if __name__ == '__main__':
     main()
