@@ -7,21 +7,7 @@ import json
 from datetime import datetime
 import sys
 from flask import Flask, jsonify
-
-# Create Flask app
-app = Flask(__name__)
-
-# Health check endpoint
-@app.route('/health')
-def health_check():
-    return jsonify({"status": "healthy"}), 200
-
-# Start Flask app in a separate thread
 from threading import Thread
-def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)))
-
-Thread(target=run_flask, daemon=True).start()
 
 # Enable logging with more detail
 logging.basicConfig(
@@ -30,6 +16,22 @@ logging.basicConfig(
     stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
+
+# Create Flask app
+try:
+    app = Flask(__name__)
+
+    @app.route('/health')
+    def health_check():
+        return jsonify({"status": "healthy"}), 200
+
+    def run_flask():
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)))
+
+    Thread(target=run_flask, daemon=True).start()
+    logger.info("Flask app started successfully")
+except Exception as e:
+    logger.error(f"Error starting Flask app: {str(e)}")
 
 # Bot Token
 TOKEN = '7583525993:AAEdW-F9wFprCI4WOKWmDXj6JgnMBFhawr0'
