@@ -99,8 +99,11 @@ def show_instruments(update: Update, context: CallbackContext, market_id: str) -
 
 def show_timeframes(update: Update, context: CallbackContext, market_id: str, instrument: str) -> None:
     """Show timeframe selection."""
+    logger.info(f"Showing timeframes for {market_id} {instrument}")
+    logger.info(f"Available timeframes: {TIMEFRAMES}")
     keyboard = []
     for tf in TIMEFRAMES:
+        logger.info(f"Adding timeframe button: {tf}")
         keyboard.append([InlineKeyboardButton(tf, callback_data=f'tf_{market_id}_{instrument}_{tf}')])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -184,21 +187,26 @@ def button_callback(update: Update, context: CallbackContext) -> None:
     query.answer()
     
     if not is_allowed(update):
+        logger.warning(f"Unauthorized access attempt in button_callback from chat ID: {update.effective_chat.id}")
         query.edit_message_text('Sorry, you are not authorized to use this bot.')
         return
     
     data = query.data
+    logger.info(f"Received callback data: {data}")
     
     if data.startswith('market_'):
         market_id = data.split('_')[1]
+        logger.info(f"Selected market: {market_id}")
         show_instruments(update, context, market_id)
     
     elif data.startswith('inst_'):
         _, market_id, instrument = data.split('_')
+        logger.info(f"Selected instrument: {market_id} {instrument}")
         show_timeframes(update, context, market_id, instrument)
     
     elif data.startswith('tf_'):
         _, market_id, instrument, timeframe = data.split('_')
+        logger.info(f"Selected timeframe: {market_id} {instrument} {timeframe}")
         send_to_n8n(market_id, instrument, timeframe, update, context)
 
 def error_handler(update: Update, context: CallbackContext) -> None:
@@ -214,34 +222,33 @@ def handle_unknown(update: Update, context: CallbackContext) -> None:
 def main() -> None:
     """Start the bot."""
     try:
-        # Create the Updater and pass it your bot's token
+        # Create the Updater and pass it your bot's token.
         updater = Updater(TOKEN)
 
         # Get the dispatcher to register handlers
-        dp = updater.dispatcher
+        dispatcher = updater.dispatcher
 
-        # Add command handlers
-        dp.add_handler(CommandHandler("start", start))
+        # Register command handlers
+        dispatcher.add_handler(CommandHandler("start", start))
         
-        # Add callback query handler
-        dp.add_handler(CallbackQueryHandler(button_callback))
+        # Register button callback handler
+        dispatcher.add_handler(CallbackQueryHandler(button_callback))
         
-        # Add unknown command handler
-        dp.add_handler(MessageHandler(Filters.command, handle_unknown))
-        
-        # Add error handler
-        dp.add_error_handler(error_handler)
+        # Register message handler for unknown commands
+        dispatcher.add_handler(MessageHandler(Filters.command, handle_unknown))
+
+        # Register error handler
+        dispatcher.add_error_handler(error_handler)
 
         # Start the Bot
-        updater.start_polling()
-        
+        updater.start_polling(drop_pending_updates=True)  
         logger.info("Bot started successfully!")
-        
+
         # Run the bot until you press Ctrl-C
         updater.idle()
         
     except Exception as e:
-        logger.error(f"Error in main function: {str(e)}", exc_info=True)
+        logger.error(f"Error in main function: {str(e)}")
         raise
 
 if __name__ == '__main__':
