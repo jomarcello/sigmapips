@@ -1,4 +1,4 @@
-#!/Users/jovannitilborg/CascadeProjects/telegram_trading_bot/venv/bin/python3.9
+#!/Users/jovannitilborg/CascadeProjects/sigmapips/venv/bin/python3.9
 # -*- coding: utf-8 -*-
 import re
 import sys

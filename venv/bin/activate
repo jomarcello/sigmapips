@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV=/Users/jovannitilborg/CascadeProjects/telegram_trading_bot/venv
+VIRTUAL_ENV=/Users/jovannitilborg/CascadeProjects/sigmapips/venv
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"
